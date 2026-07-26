@@ -1,80 +1,97 @@
-[![Build Status](https://github.com/RoboCup-SSL/grSim/workflows/Build/badge.svg)](https://github.com/RoboCup-SSL/grSim/actions?query=workflow%3ABuild+branch%3Amaster) [![CodeFactor](https://www.codefactor.io/repository/github/robocup-ssl/grsim/badge/master)](https://www.codefactor.io/repository/github/robocup-ssl/grsim/overview/master)
+# grSim (headless library edition)
 
-grSim
-=======================
+RoboCup Small Size League simulator, reworked as a **network-free, GUI-free C++ library** for fast in-process control and ML/RL training.
 
-[RoboCup Small Size League](https://ssl.robocup.org/) Simulator.
+> Full conversion report: [docs/HEADLESS_REPORT.md](docs/HEADLESS_REPORT.md)
 
-![grSim on Ubuntu](docs/img/screenshot01.jpg?raw=true "grSim on Ubuntu")
+## Quick start (headless)
 
-- [Install instructions](INSTALL.md)
-- [Authors](AUTHORS.md)
-- [Changelog](CHANGELOG.md)
-- License: [GNU General Public License (GPLv3)](LICENSE.md)
+### Dependencies
 
-System Requirements
------------------------
+- CMake 3.14+, C++17
+- [ODE](http://www.ode.org) (`libode-dev`)
+- [yaml-cpp](https://github.com/jbeder/yaml-cpp) (`libyaml-cpp-dev`)
+- Optional: GoogleTest, Python3+Pillow+ffmpeg for tests/visualization
 
-grSim will likely run on a modern dual-core PC with a decent graphics card. A typical configuration is:
+### Build & test
 
-- Dual Core CPU (2.0 Ghz+)
-- 1GB of RAM
-- 256MB nVidia or ATI graphics card
-
-Note that it may run on lower-end equipment though good performance is not guaranteed.
-
-
-Software Requirements
----------------------
-
-grSim compiles on Linux (tested on Ubuntu and Arch Linux variants only) and Mac OS. It depends on the following libraries:
-
-- [CMake](https://cmake.org/) version 3.5+
-- [pkg-config](https://freedesktop.org/wiki/Software/pkg-config/)
-- [OpenGL](https://www.opengl.org)
-- [Qt5 Development Libraries](https://www.qt.io)
-- [Open Dynamics Engine (ODE)](http://www.ode.org)
-- [VarTypes Library](https://github.com/jpfeltracco/vartypes) forked from [Szi's Vartypes](https://github.com/szi/vartypes)
-- [Google Protobuf](https://github.com/google/protobuf)
-- [Boost development libraries](http://www.boost.org/) (needed by VarTypes)
-
-Please consult the [install instructions](INSTALL.md) for more details.
-
-Usage
------
-
-Receiving data from the grSim is similar to receiving data from the [SSL-Vision](https://github.com/RoboCup-SSL/ssl-vision) using [Google Protobuf](https://github.com/google/protobuf) library.
-Sending data to the simulator is also possible using Google Protobuf. Sample clients are included in [clients](./clients) folder. There are two clients available, *qt-based* and *Java-based*. The native client is compiled during the grSim compilation. To compile the Java client, please consult the corresponding `README` file.
-
-Qt [example project](https://github.com/robocin/ssl-client) to receive and send data to the simulator.
-
-Star History
-------
-[![Star History Chart](https://api.star-history.com/svg?repos=robocup-ssl/grsim&type=Date)](https://star-history.com/#robocup-ssl/grsim&Date)
-
-Citing
-------
-
-If you use this in your research, please cite the original paper:
+```bash
+cmake -S libgrsim -B build_headless -DGRSIM_BUILD_TESTS=ON
+cmake --build build_headless -j
+ctest --test-dir build_headless --output-on-failure
 ```
-@inproceedings{Monajjemi2011grSimR,
-  title={grSim - RoboCup Small Size Robot Soccer Simulator},
-  author={Valiallah Monajjemi and A. Koochakzadeh and S. S. Ghidary},
-  booktitle={RoboCup},
-  year={2011}
+
+### Run a demo (circle / square, sync or async)
+
+```bash
+./build_headless/grsim_run \
+  --config config/default.yaml \
+  --duration 8 \
+  --mode sync \
+  --behavior circle \
+  --robots 3 \
+  --log-dir output/logs
+```
+
+### Visualize logs (top-down 2D GIF/MP4)
+
+```bash
+python3 libgrsim/tools/visualize_logs.py \
+  --vision output/logs/<run>_vision.csv \
+  --commands output/logs/<run>_commands.csv \
+  --meta output/logs/<run>_meta.txt \
+  --out output/videos/run.gif
+```
+
+Example outputs are under `output/videos/` (`circle_sync.gif`, `square_sync.gif`, `circle_async.gif`).
+
+## What changed vs classic grSim
+
+| Classic grSim | This edition |
+|---------------|--------------|
+| Qt OpenGL GUI | Headless library |
+| UDP vision + command ports | In-process API |
+| VarTypes XML + robot `.ini` | YAML (`config/default.yaml`, `config/robots/`) |
+| External team clients | Built-in `ClientController` + circle/square demos |
+| Real-time GUI loop | Sync / async runner (~5–7× realtime) |
+
+## Library layout
+
+```
+libgrsim/include/grsim/   # Public headers
+libgrsim/src/             # Implementation
+config/                   # YAML configuration
+output/logs/              # CSV vision + command logs
+output/videos/            # GIF/MP4 renders
+```
+
+## ML / RL usage sketch
+
+```cpp
+#include "grsim/config.h"
+#include "grsim/runner.h"
+
+auto cfg = grsim::SimConfig::loadFromFile("config/default.yaml");
+cfg.logging.enabled = false;
+grsim::SimulationRunner runner(cfg, grsim::createBehavior(cfg));
+
+for (int step = 0; step < horizon; ++step) {
+    auto obs = runner.world().captureVision();
+    auto actions = policy(obs);          // your agent
+    runner.world().applyCommands(actions);
+    runner.world().step();
 }
 ```
 
-If you wish to cite this repo with it's modifications specifically, please cite:
+## Configuration
 
-```
-@misc{grsim2021,
-  author = {Mohammad Mahdi Rahimi and Jan Segre and Valiallah Monajjemi and A. Koochakzadeh and Sepehr MohaimenianPour and Nicolai Ommer and  Avatar
-Kazunori Kimura and Jeremy Feltracco and Kenta Sato and Atousa Ahsani},
-  title = {GRSIM},
-  year = {2021},
-  publisher = {GitHub},
-  note = {GitHub repository},
-  howpublished = {\url{https://github.com/RoboCup-SSL/grSim/}}
-}
-```
+- World / client / logging: [`config/default.yaml`](config/default.yaml)
+- Robot geometry & physics: [`config/robots/parsian.yaml`](config/robots/parsian.yaml)
+
+## License
+
+[GNU GPL v3](LICENSE.md) — same as upstream grSim.
+
+## Upstream project
+
+Based on [RoboCup-SSL/grSim](https://github.com/RoboCup-SSL/grSim). Classic authors and citation info are preserved in [AUTHORS.md](AUTHORS.md).

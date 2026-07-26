@@ -1,0 +1,83 @@
+# grSim headless default configuration (YAML)
+# Replaces ~/.grsim.xml (VarTypes) and config/*.ini robot files
+
+division: "A"   # A or B
+robots_count: 3  # robots per team (max 16)
+
+field:
+  # Division A defaults (used when division is A)
+  A:
+    line_width: 0.010
+    length: 12.0
+    width: 9.0
+    radius: 0.5
+    free_kick: 0.7
+    penalty_width: 3.60
+    penalty_depth: 1.80
+    penalty_point: 8.00
+    margin_touch_line: 0.3
+    margin_goal_line: 0.6
+    goal_substitution_area_width: 0.3
+    referee_margin: 0.0
+    wall_thickness: 0.050
+    goal_thickness: 0.020
+    goal_depth: 0.18
+    goal_width: 1.8
+    goal_height: 0.160
+  B:
+    line_width: 0.010
+    length: 9.0
+    width: 6.0
+    radius: 0.5
+    free_kick: 0.7
+    penalty_width: 2.00
+    penalty_depth: 1.0
+    penalty_point: 6.00
+    margin_touch_line: 0.3
+    margin_goal_line: 0.3
+    goal_substitution_area_width: 0.0
+    referee_margin: 0.0
+    wall_thickness: 0.050
+    goal_thickness: 0.020
+    goal_depth: 0.18
+    goal_width: 1.0
+    goal_height: 0.160
+
+ball:
+  radius: 0.0215
+  mass: 0.043
+  friction: 0.05
+  slip: 1.0
+  bounce: 0.5
+  bounce_vel: 0.1
+  linear_damp: 0.004
+  angular_damp: 0.004
+
+physics:
+  desired_fps: 60.0
+  delta_time: 0.016666667   # 1/60
+  gravity: 9.81
+  reset_turnover: true
+
+teams:
+  blue: parsian
+  yellow: parsian
+
+client:
+  control_period_ms: 16     # client tick period (sync mode)
+  mode: sync                # sync | async
+  behavior: circle          # circle | square | idle
+  speed: 1.0                # m/s for path following
+  circle_radius: 1.5        # meters
+  square_size: 2.0          # meters side length
+  active_team: both         # blue | yellow | both
+  active_robots: all        # all | list e.g. [0,1,2]
+
+logging:
+  enabled: true
+  directory: output/logs
+  prefix: run
+  log_vision: true
+  log_commands: true
+
+formation: outside          # outside | inside_1 | inside_2
