@@ -169,8 +169,15 @@ int main(int argc, char** argv) {
             fprintf(f, "behavior=%s\n",
                     cfg.client.behavior == BehaviorType::Square ? "square"
                     : cfg.client.behavior == BehaviorType::Idle ? "idle" : "circle");
+            fprintf(f, "robots_count=%d\n", cfg.robots_count);
+            fprintf(f, "control_period_ms=%d\n", cfg.client.control_period_ms);
+            fprintf(f, "delta_time=%.8f\n", cfg.DeltaTime());
+            fprintf(f, "circle_radius=%.3f\n", cfg.client.circle_radius);
+            fprintf(f, "square_size=%.3f\n", cfg.client.square_size);
+            fprintf(f, "speed=%.3f\n", cfg.client.speed);
             fprintf(f, "frames=%llu\n", (unsigned long long)result.frames);
             fprintf(f, "sim_time=%.4f\n", result.sim_time);
+            fprintf(f, "wall_time=%.4f\n", result.wall_time_sec);
             fclose(f);
             std::cout << "  meta:        " << meta << "\n";
         }

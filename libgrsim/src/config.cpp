@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <vector>
 
 namespace grsim {
 
@@ -48,7 +49,6 @@ BehaviorType parseBehavior(const std::string& s) {
 }
 
 std::string resolveRobotPath(const std::string& name, const std::string& base_dir) {
-    // try relative paths commonly used
     std::vector<std::string> candidates = {
         base_dir + "/robots/" + name + ".yaml",
         base_dir + "/" + name + ".yaml",
@@ -67,6 +67,38 @@ std::string parentDir(const std::string& path) {
     auto pos = path.find_last_of("/\\");
     if (pos == std::string::npos) return ".";
     return path.substr(0, pos);
+}
+
+void loadClientNode(const YAML::Node& cl, ClientSettings& c) {
+    if (!cl) return;
+    c.control_period_ms = cl["control_period_ms"].as<int>(c.control_period_ms);
+    if (cl["mode"]) c.mode = parseMode(cl["mode"].as<std::string>());
+    if (cl["behavior"]) c.behavior = parseBehavior(cl["behavior"].as<std::string>());
+    c.speed = cl["speed"].as<double>(c.speed);
+    c.circle_radius = cl["circle_radius"].as<double>(c.circle_radius);
+    c.square_size = cl["square_size"].as<double>(c.square_size);
+    c.active_team = cl["active_team"].as<std::string>(c.active_team);
+    if (cl["active_robots"] && cl["active_robots"].IsScalar()) {
+        c.active_robots = cl["active_robots"].as<std::string>("all");
+    } else {
+        c.active_robots = "all";
+    }
+}
+
+void loadEnvNode(const YAML::Node& e, EnvSettings& env) {
+    if (!e) return;
+    env.max_episode_time = e["max_episode_time"].as<double>(env.max_episode_time);
+    env.max_episode_steps = e["max_episode_steps"].as<int>(env.max_episode_steps);
+    env.physics_steps_per_action = e["physics_steps_per_action"].as<int>(env.physics_steps_per_action);
+    env.reward_type = e["reward_type"].as<std::string>(env.reward_type);
+    env.terminate_on_goal = e["terminate_on_goal"].as<bool>(env.terminate_on_goal);
+    if (e["seed"] && !e["seed"].IsNull()) {
+        env.seed_enabled = true;
+        env.seed = e["seed"].as<uint64_t>(env.seed);
+    }
+    if (e["seed_enabled"]) {
+        env.seed_enabled = e["seed_enabled"].as<bool>(env.seed_enabled);
+    }
 }
 
 }  // namespace
@@ -125,33 +157,52 @@ SimConfig SimConfig::defaults() {
 void SimConfig::applyDivision() {
     // field already set by loader; defaults are Division A
     if (division == "B" || division == "b") {
-        // if field still default A sizes, overwrite with B defaults
-        // explicit field load handles this; here ensure B defaults if needed
+        // explicit field load handles division selection
     }
 }
 
 SimConfig SimConfig::loadFromFile(const std::string& path) {
-    YAML::Node root = YAML::LoadFile(path);
+    YAML::Node root;
+    try {
+        root = YAML::LoadFile(path);
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Failed to load YAML config '") + path + "': " + e.what());
+    }
+    if (!root || root.IsNull()) {
+        throw std::runtime_error(std::string("Empty or invalid YAML config: ") + path);
+    }
+
     SimConfig c = defaults();
     std::string base = parentDir(path);
 
-    c.division = root["division"].as<std::string>(c.division);
-    c.robots_count = root["robots_count"].as<int>(c.robots_count);
+    // --- simulation (hierarchical or flat) ---
+    if (root["simulation"]) {
+        auto sim = root["simulation"];
+        c.division = sim["division"].as<std::string>(c.division);
+        c.robots_count = sim["robots_count"].as<int>(c.robots_count);
+        c.formation = sim["formation"].as<std::string>(c.formation);
+    }
+    // Flat keys still accepted for backward compatibility
+    if (root["division"]) c.division = root["division"].as<std::string>(c.division);
+    if (root["robots_count"]) c.robots_count = root["robots_count"].as<int>(c.robots_count);
+    if (root["formation"]) c.formation = root["formation"].as<std::string>(c.formation);
+
     if (c.robots_count < 1) c.robots_count = 1;
     if (c.robots_count > kMaxRobotCount) c.robots_count = kMaxRobotCount;
 
+    // --- field ---
     if (root["field"]) {
         std::string div_key = (c.division == "B" || c.division == "b") ? "B" : "A";
         if (root["field"][div_key]) {
             c.field = loadFieldNode(root["field"][div_key]);
         } else if (root["field"]["length"]) {
             c.field = loadFieldNode(root["field"]);
-        } else {
-            // try A then B
-            if (root["field"]["A"]) c.field = loadFieldNode(root["field"]["A"]);
+        } else if (root["field"]["A"]) {
+            c.field = loadFieldNode(root["field"]["A"]);
         }
     }
 
+    // --- ball ---
     if (root["ball"]) {
         auto b = root["ball"];
         c.ball.radius = b["radius"].as<double>(c.ball.radius);
@@ -164,6 +215,7 @@ SimConfig SimConfig::loadFromFile(const std::string& path) {
         c.ball.angular_damp = b["angular_damp"].as<double>(c.ball.angular_damp);
     }
 
+    // --- physics ---
     if (root["physics"]) {
         auto p = root["physics"];
         c.physics.desired_fps = p["desired_fps"].as<double>(c.physics.desired_fps);
@@ -172,6 +224,16 @@ SimConfig SimConfig::loadFromFile(const std::string& path) {
         c.physics.reset_turnover = p["reset_turnover"].as<bool>(c.physics.reset_turnover);
     }
 
+    // --- robots / teams ---
+    // Prefer robots: {blue, yellow}; fall back to teams:
+    if (root["robots"] && root["robots"].IsMap()) {
+        if (root["robots"]["blue"] && root["robots"]["blue"].IsScalar()) {
+            c.blue_team_name = root["robots"]["blue"].as<std::string>(c.blue_team_name);
+        }
+        if (root["robots"]["yellow"] && root["robots"]["yellow"].IsScalar()) {
+            c.yellow_team_name = root["robots"]["yellow"].as<std::string>(c.yellow_team_name);
+        }
+    }
     if (root["teams"]) {
         c.blue_team_name = root["teams"]["blue"].as<std::string>(c.blue_team_name);
         c.yellow_team_name = root["teams"]["yellow"].as<std::string>(c.yellow_team_name);
@@ -189,22 +251,24 @@ SimConfig SimConfig::loadFromFile(const std::string& path) {
     }
     c.robot_settings = c.blue_robot;
 
-    if (root["client"]) {
-        auto cl = root["client"];
-        c.client.control_period_ms = cl["control_period_ms"].as<int>(c.client.control_period_ms);
-        if (cl["mode"]) c.client.mode = parseMode(cl["mode"].as<std::string>());
-        if (cl["behavior"]) c.client.behavior = parseBehavior(cl["behavior"].as<std::string>());
-        c.client.speed = cl["speed"].as<double>(c.client.speed);
-        c.client.circle_radius = cl["circle_radius"].as<double>(c.client.circle_radius);
-        c.client.square_size = cl["square_size"].as<double>(c.client.square_size);
-        c.client.active_team = cl["active_team"].as<std::string>(c.client.active_team);
-        if (cl["active_robots"] && cl["active_robots"].IsScalar()) {
-            c.client.active_robots = cl["active_robots"].as<std::string>("all");
-        } else {
-            c.client.active_robots = "all";
-        }
+    // --- control (preferred) or legacy client ---
+    if (root["control"]) {
+        loadClientNode(root["control"], c.client);
+    } else if (root["client"]) {
+        loadClientNode(root["client"], c.client);
     }
 
+    // --- env ---
+    if (root["env"]) {
+        loadEnvNode(root["env"], c.env);
+    }
+    // seed may also appear under simulation
+    if (root["simulation"] && root["simulation"]["seed"] && !root["simulation"]["seed"].IsNull()) {
+        c.env.seed_enabled = true;
+        c.env.seed = root["simulation"]["seed"].as<uint64_t>(c.env.seed);
+    }
+
+    // --- logging ---
     if (root["logging"]) {
         auto lg = root["logging"];
         c.logging.enabled = lg["enabled"].as<bool>(c.logging.enabled);
@@ -214,7 +278,6 @@ SimConfig SimConfig::loadFromFile(const std::string& path) {
         c.logging.log_commands = lg["log_commands"].as<bool>(c.logging.log_commands);
     }
 
-    c.formation = root["formation"].as<std::string>(c.formation);
     return c;
 }
 

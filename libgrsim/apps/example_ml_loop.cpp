@@ -1,29 +1,36 @@
-// Minimal example: custom policy loop without network or GUI.
-// Build (optional): add to CMake or compile with -lgrsim -lode -lyaml-cpp -lpthread
-#include "grsim/config.h"
-#include "grsim/world.h"
+// Minimal example: Gym-style Env loop without network or GUI.
+#include "grsim/env.h"
 #include "grsim/behaviors.h"
 #include <iostream>
 
 int main() {
     using namespace grsim;
+
     SimConfig cfg = SimConfig::defaults();
     cfg.robots_count = 2;
     cfg.logging.enabled = false;
+    cfg.env.max_episode_time = 5.0;
+    cfg.env.reward_type = "zero";
+    cfg.client.behavior = BehaviorType::Circle;
 
-    SimWorld world(cfg);
+    Env env(cfg);
+    auto obs = env.reset(42);
+
     CircleBehavior policy(cfg);
-
-    for (int i = 0; i < 300; ++i) {
-        if (i % 1 == 0) {  // every physics step ≈ 16ms
-            auto vision = world.captureVision();
-            auto cmds = policy.compute(vision, world.simTime());
-            world.applyCommands(cmds);
-        }
-        world.step();
+    double total_reward = 0.0;
+    int steps = 0;
+    while (!env.done() && steps < 300) {
+        auto actions = policy.compute(obs.vision, obs.sim_time);
+        auto result = env.step(actions);
+        total_reward += result.reward;
+        obs = result.observation;
+        ++steps;
     }
-    auto v = world.captureVision();
-    std::cout << "Done. t=" << v.t_capture
-              << " blue0=(" << v.robots_blue[0].x << "," << v.robots_blue[0].y << ")\n";
+
+    std::cout << "Done. steps=" << steps
+              << " t=" << obs.sim_time
+              << " reward=" << total_reward
+              << " blue0=(" << obs.vision.robots_blue[0].x
+              << "," << obs.vision.robots_blue[0].y << ")\n";
     return 0;
 }

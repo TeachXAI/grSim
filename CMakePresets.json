@@ -2,17 +2,14 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "windows-default",
-      "displayName": "Windows x64 Release",
+      "name": "default",
+      "displayName": "Headless Release",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
+      "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}"
+        "GRSIM_BUILD_TESTS": "ON",
+        "GRSIM_BUILD_APPS": "ON"
       }
     },
     {
@@ -30,16 +27,19 @@
           "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
         },
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}"
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "GRSIM_BUILD_TESTS": "ON"
       }
     }
   ],
   "buildPresets": [
     {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
       "name": "ninja-multi-vcpkg",
-      "configurePreset": "ninja-multi-vcpkg",
-      "displayName": "Build ninja-multi-vcpkg",
-      "description": "Build ninja-multi-vcpkg Configurations"
+      "configurePreset": "ninja-multi-vcpkg"
     }
   ]
 }

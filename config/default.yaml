@@ -1,11 +1,27 @@
 # grSim headless default configuration (YAML)
-# Replaces ~/.grsim.xml (VarTypes) and config/*.ini robot files
+# Hierarchical layout: simulation / field / ball / physics / robots /
+#                      control / env / logging
+# Backward compatible: top-level division/robots_count/formation and
+# `client:` / `teams:` keys are still accepted by the loader.
 
-division: "A"   # A or B
-robots_count: 3  # robots per team (max 16)
+# ---------------------------------------------------------------------------
+# Simulation
+# ---------------------------------------------------------------------------
+simulation:
+  division: "A"          # A or B
+  robots_count: 3        # robots per team (max 16)
+  formation: outside     # outside | inside_1 | inside_2 | outside_field
+  seed: null             # integer for deterministic runs; null = nondeterministic
 
+# Flat aliases (optional; overridden by simulation: when both present)
+# division: "A"
+# robots_count: 3
+# formation: outside
+
+# ---------------------------------------------------------------------------
+# Field geometry (Division A / B)
+# ---------------------------------------------------------------------------
 field:
-  # Division A defaults (used when division is A)
   A:
     line_width: 0.010
     length: 12.0
@@ -43,6 +59,9 @@ field:
     goal_width: 1.0
     goal_height: 0.160
 
+# ---------------------------------------------------------------------------
+# Ball
+# ---------------------------------------------------------------------------
 ball:
   radius: 0.0215
   mass: 0.043
@@ -53,31 +72,54 @@ ball:
   linear_damp: 0.004
   angular_damp: 0.004
 
+# ---------------------------------------------------------------------------
+# Physics
+# ---------------------------------------------------------------------------
 physics:
   desired_fps: 60.0
   delta_time: 0.016666667   # 1/60
   gravity: 9.81
   reset_turnover: true
 
-teams:
+# ---------------------------------------------------------------------------
+# Robots (team packs under config/robots/<name>.yaml)
+# ---------------------------------------------------------------------------
+robots:
   blue: parsian
   yellow: parsian
+# Legacy alias: teams: {blue: parsian, yellow: parsian}
 
-client:
-  control_period_ms: 16     # client tick period (sync mode)
+# ---------------------------------------------------------------------------
+# Control (sync / async + built-in behaviours)
+# Also accepted under legacy key `client:`
+# ---------------------------------------------------------------------------
+control:
+  control_period_ms: 16     # client tick period (sim time)
   mode: sync                # sync | async
   behavior: circle          # circle | square | idle
   speed: 1.0                # m/s for path following
   circle_radius: 1.5        # meters
   square_size: 2.0          # meters side length
   active_team: both         # blue | yellow | both
-  active_robots: all        # all | list e.g. [0,1,2]
+  active_robots: all        # all
 
+# ---------------------------------------------------------------------------
+# Env (Gym-style RL interface over SimulationRunner / SimWorld)
+# ---------------------------------------------------------------------------
+env:
+  max_episode_time: 60.0          # sim seconds; 0 = unlimited
+  max_episode_steps: 0            # 0 = unlimited
+  physics_steps_per_action: 0     # 0 = derive from control_period / delta_time
+  reward_type: zero               # zero | ball_progress | velocity_magnitude
+  terminate_on_goal: false
+  # seed: 42                      # optional; also under simulation.seed
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
 logging:
   enabled: true
   directory: output/logs
   prefix: run
   log_vision: true
   log_commands: true
-
-formation: outside          # outside | inside_1 | inside_2

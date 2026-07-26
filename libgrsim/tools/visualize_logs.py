@@ -196,7 +196,11 @@ def render_frame(frame, cmds_for_frame, trails, field_l, field_w, width, height,
 
     # HUD
     hud = f"t={frame['t']:.2f}s  robots={len(frame['robots'])}"
-    draw.rectangle([8, 8, 280, 32], fill=(0, 0, 0, 140))
+    extra = frame.get("hud_extra")
+    if extra:
+        hud = hud + "  " + extra
+    box_w = max(280, 12 + 7 * len(hud))
+    draw.rectangle([8, 8, box_w, 32], fill=(0, 0, 0, 140))
     draw.text((14, 12), hud, fill=(255, 255, 255, 255))
     return img.convert("RGB")
 
@@ -280,6 +284,14 @@ def main():
         fid = fr["frame"]
         if fid in cmds:
             last_cmds = cmds[fid]
+        hud_extra = " ".join(
+            x for x in [
+                meta.get("mode", ""),
+                meta.get("behavior", ""),
+            ] if x
+        )
+        fr = dict(fr)
+        fr["hud_extra"] = hud_extra
         images.append(
             render_frame(fr, last_cmds, trails, field_l, field_w, args.width, args.height)
         )

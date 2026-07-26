@@ -2,6 +2,7 @@
 
 #include "grsim/types.h"
 #include "grsim/constants.h"
+#include <cstdint>
 #include <string>
 #include <stdexcept>
 
@@ -62,6 +63,8 @@ struct PhysicsSettings {
     bool reset_turnover = true;
 };
 
+/// Control / client settings (sync vs async, built-in behaviours).
+/// Loaded from YAML keys `control:` or legacy `client:`.
 struct ClientSettings {
     int control_period_ms = 16;
     RunMode mode = RunMode::Sync;
@@ -81,22 +84,43 @@ struct LoggingSettings {
     bool log_commands = true;
 };
 
+/// Gym-style Env parameters (loaded from YAML `env:`).
+struct EnvSettings {
+    double max_episode_time = 60.0;     ///< seconds of sim time; 0 = unlimited
+    int max_episode_steps = 0;          ///< 0 = unlimited
+    int physics_steps_per_action = 0;   ///< 0 = derive from control_period / delta_time
+    std::string reward_type = "zero";   ///< zero | ball_progress | velocity_magnitude
+    bool terminate_on_goal = false;
+    bool seed_enabled = false;
+    uint64_t seed = 0;
+};
+
 struct SimConfig {
+    // --- simulation ---
     std::string division = "A";
     int robots_count = 3;
+    std::string formation = "outside";  // outside | inside_1 | inside_2 | outside_field
+
+    // --- world geometry / physics ---
     FieldGeometry field;
     BallSettings ball;
     PhysicsSettings physics;
+
+    // --- robots ---
     RobotSettings blue_robot;
     RobotSettings yellow_robot;
-    ClientSettings client;
-    LoggingSettings logging;
-    std::string formation = "outside";
     std::string blue_team_name = "parsian";
     std::string yellow_team_name = "parsian";
+    RobotSettings robot_settings;  // active during construction
 
-    // Active robot settings used during construction (mirrors old robotSettings)
-    RobotSettings robot_settings;
+    // --- control (also accepts YAML key `client:`) ---
+    ClientSettings client;
+
+    // --- env (RL interface) ---
+    EnvSettings env;
+
+    // --- logging ---
+    LoggingSettings logging;
 
     // Convenience accessors matching original API style
     int Robots_Count() const { return robots_count; }

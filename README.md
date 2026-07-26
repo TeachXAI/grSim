@@ -4,27 +4,34 @@ RoboCup Small Size League simulator, reworked as a **network-free, GUI-free C++ 
 
 > Full conversion report: [docs/HEADLESS_REPORT.md](docs/HEADLESS_REPORT.md)
 
-## Quick start (headless)
+## Quick start
 
 ### Dependencies
 
 - CMake 3.14+, C++17
 - [ODE](http://www.ode.org) (`libode-dev`)
 - [yaml-cpp](https://github.com/jbeder/yaml-cpp) (`libyaml-cpp-dev`)
-- Optional: GoogleTest, Python3+Pillow+ffmpeg for tests/visualization
+- Optional: GoogleTest (auto-fetched), Python3+Pillow+ffmpeg for visualization
+
+```bash
+./install_deps.sh --skip-install
+# or manually:
+# sudo apt install build-essential cmake pkg-config libode-dev libyaml-cpp-dev
+```
 
 ### Build & test
 
 ```bash
-cmake -S libgrsim -B build_headless -DGRSIM_BUILD_TESTS=ON
-cmake --build build_headless -j
-ctest --test-dir build_headless --output-on-failure
+cmake -S . -B build -DGRSIM_BUILD_TESTS=ON
+cmake --build build -j
+ctest --test-dir build/libgrsim --output-on-failure
+# or: make && make test
 ```
 
 ### Run a demo (circle / square, sync or async)
 
 ```bash
-./build_headless/grsim_run \
+./build/libgrsim/grsim_run \
   --config config/default.yaml \
   --duration 8 \
   --mode sync \
@@ -43,50 +50,53 @@ python3 libgrsim/tools/visualize_logs.py \
   --out output/videos/run.gif
 ```
 
-Example outputs are under `output/videos/` (`circle_sync.gif`, `square_sync.gif`, `circle_async.gif`).
-
-## What changed vs classic grSim
-
-| Classic grSim | This edition |
-|---------------|--------------|
-| Qt OpenGL GUI | Headless library |
-| UDP vision + command ports | In-process API |
-| VarTypes XML + robot `.ini` | YAML (`config/default.yaml`, `config/robots/`) |
-| External team clients | Built-in `ClientController` + circle/square demos |
-| Real-time GUI loop | Sync / async runner (~5–7× realtime) |
-
 ## Library layout
 
 ```
-libgrsim/include/grsim/   # Public headers
+libgrsim/include/grsim/   # Public headers (env, runner, world, config, ...)
 libgrsim/src/             # Implementation
-config/                   # YAML configuration
-output/logs/              # CSV vision + command logs
-output/videos/            # GIF/MP4 renders
+libgrsim/apps/            # grsim_run CLI + examples
+libgrsim/tests/           # GoogleTest suite
+config/                   # Hierarchical YAML configuration
 ```
 
-## ML / RL usage sketch
+## ML / RL Env API
 
 ```cpp
-#include "grsim/config.h"
-#include "grsim/runner.h"
+#include "grsim/env.h"
 
 auto cfg = grsim::SimConfig::loadFromFile("config/default.yaml");
 cfg.logging.enabled = false;
-grsim::SimulationRunner runner(cfg, grsim::createBehavior(cfg));
+grsim::Env env(cfg);
 
-for (int step = 0; step < horizon; ++step) {
-    auto obs = runner.world().captureVision();
-    auto actions = policy(obs);          // your agent
-    runner.world().applyCommands(actions);
-    runner.world().step();
+auto obs = env.reset(/*seed=*/42);
+for (int t = 0; t < horizon; ++t) {
+    std::vector<grsim::RobotCommand> actions = policy(obs.vision);
+    auto result = env.step(actions);
+    // result.observation, result.reward, result.terminated, result.truncated
+    obs = result.observation;
+    if (result.done()) break;
 }
+
+// Underlying SimulationRunner / SimWorld remain fully accessible:
+env.world().setBallPose(0, 0);
+env.runner().run(10.0);  // full-duration circle/square demo
 ```
 
 ## Configuration
 
-- World / client / logging: [`config/default.yaml`](config/default.yaml)
-- Robot geometry & physics: [`config/robots/parsian.yaml`](config/robots/parsian.yaml)
+All parameters live in the hierarchical YAML tree ([`config/default.yaml`](config/default.yaml)):
+
+| Section | Purpose |
+|---------|---------|
+| `simulation` | division, robots_count, formation, seed |
+| `field` / `ball` / `physics` | world geometry and ODE settings |
+| `robots` | team robot packs (`config/robots/*.yaml`) |
+| `control` | sync/async mode, behaviours, control period |
+| `env` | max episode time, reward type, terminate_on_goal, steps/action |
+| `logging` | CSV vision/command logs |
+
+Legacy keys (`client:`, `teams:`, top-level `division`) are still accepted.
 
 ## License
 

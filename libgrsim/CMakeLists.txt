@@ -25,6 +25,7 @@ set(GRSIM_LIB_SOURCES
   src/behaviors.cpp
   src/logger.cpp
   src/runner.cpp
+  src/env.cpp
   src/physics/pobject.cpp
   src/physics/pworld.cpp
   src/physics/pball.cpp
@@ -61,6 +62,9 @@ if(GRSIM_BUILD_APPS)
       ${GRSIM_PROJECT_ROOT}/config/robots/parsian.yaml
       $<TARGET_FILE_DIR:grsim_run>/config/robots/parsian.yaml
   )
+
+  add_executable(example_ml_loop apps/example_ml_loop.cpp)
+  target_link_libraries(example_ml_loop PRIVATE grsim)
 endif()
 
 if(GRSIM_BUILD_TESTS)
@@ -83,6 +87,8 @@ if(GRSIM_BUILD_TESTS)
     tests/test_behaviors.cpp
     tests/test_simulation.cpp
     tests/test_logger.cpp
+    tests/test_env.cpp
+    tests/test_regression_behaviors.cpp
   )
   target_link_libraries(grsim_tests PRIVATE grsim GTest::gtest_main)
   target_compile_definitions(grsim_tests PRIVATE
@@ -96,3 +102,6 @@ install(TARGETS grsim ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
 install(DIRECTORY include/grsim DESTINATION include)
 install(FILES ${GRSIM_PROJECT_ROOT}/config/default.yaml DESTINATION share/grsim/config)
 install(DIRECTORY ${GRSIM_PROJECT_ROOT}/config/robots DESTINATION share/grsim/config)
+if(GRSIM_BUILD_APPS)
+  install(TARGETS grsim_run RUNTIME DESTINATION bin)
+endif()

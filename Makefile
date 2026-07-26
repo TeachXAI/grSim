@@ -1,45 +1,35 @@
 BUILDDIR=build
-
-#change to Debug for debug mode
 BUILDTYPE=Release
-#BUILDTYPE=Debug
 
-BUILD_ODE=OFF
-
-.PHONY: all build mkbuilddir cmake dist package deb install clean clean-all
+.PHONY: all build mkbuilddir cmake test install clean clean-all demos
 
 all: build
 
-deploy: dist upload
-
-# requires pygithub3:
-# pip install pygithub3
-upload:
-	./upload.py --all
-
 build: mkbuilddir cmake
-	$(MAKE) -C $(BUILDDIR)
+	cmake --build $(BUILDDIR) --parallel
+	@echo "Binary: $(BUILDDIR)/libgrsim/grsim_run"
 
 mkbuilddir:
 	[ -d $(BUILDDIR) ] || mkdir $(BUILDDIR)
 
 cmake: CMakeLists.txt
-	cd $(BUILDDIR) && cmake -DCMAKE_BUILD_TYPE=$(BUILDTYPE) -DBUILD_ODE=$(BUILD_ODE) ..
+	cmake -S . -B $(BUILDDIR) -DCMAKE_BUILD_TYPE=$(BUILDTYPE) -DGRSIM_BUILD_TESTS=ON
 
-dist: package
+test: build
+	ctest --test-dir $(BUILDDIR)/libgrsim --output-on-failure
 
-package: all
-	$(MAKE) -C $(BUILDDIR) package
+install: build
+	cmake --install $(BUILDDIR)
 
-deb: all
-	cd $(BUILDDIR) && cpack -G DEB
+demos: build
+	@mkdir -p output/logs
+	$(BUILDDIR)/libgrsim/grsim_run --config config/default.yaml --duration 8 --mode sync --behavior circle --log-dir output/logs --robots 3
+	$(BUILDDIR)/libgrsim/grsim_run --config config/default.yaml --duration 8 --mode sync --behavior square --log-dir output/logs --robots 3
+	$(BUILDDIR)/libgrsim/grsim_run --config config/default.yaml --duration 8 --mode async --behavior circle --log-dir output/logs --robots 3
+	$(BUILDDIR)/libgrsim/grsim_run --config config/default.yaml --duration 8 --mode async --behavior square --log-dir output/logs --robots 3
 
-install: all
-	$(MAKE) -C $(BUILDDIR) install
+clean:
+	[ -d $(BUILDDIR) ] && cmake --build $(BUILDDIR) --target clean || true
 
-clean: mkkbuilddir cmake
-	$(MAKE) -C $(BUILDDIR) clean
-	
-clean-all: mkbuilddir
-	cd $(BUILDDIR) && rm -rf *
-
+clean-all:
+	rm -rf $(BUILDDIR)
